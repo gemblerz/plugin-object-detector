@@ -3,7 +3,7 @@ from rclpy.node import Node
 
 from tool.utils import *
 from tool.torch_utils import *
-from tool.darknet2pytorch import Darknet
+from hubconf import nvidia_ssd_processing_utils
 import torch
 import argparse
 
@@ -27,37 +27,42 @@ class ObjectDetector(Node):
 
     def run(self):
         self.get_logger().info("Object counter running!")
-        model = Darknet(args.cfgfile)
-        model.load_weights(args.weightfile)
         use_cuda = torch.cuda.is_available()
         if use_cuda:
-            self.model.cuda()
-        namesfile = 'detection/coco.names'
-        class_names = load_class_names(namesfile)
+            ssd_model = torch.load(args.model)
+            ssd_model.to('cuda')
+        else:
+            ssd_model = torch.load(args.model, map_location=torch.device('cpu'))
+        ssd_model.eval()
+        utils = nvidia_ssd_processing_utils()
+        classes_to_labels = utils.get_coco_object_dictionary()
         self.get_logger().info("Model loaded")
         
         with Camera(self.stream) as camera:
             for sample in camera.stream():
                 image = sample.data
-                sized = cv2.resize(image, (model.width, model.height))
-                # sized = cv2.cvtColor(sized, cv2.COLOR_BGR2RGB)
-                boxes = do_detect(model, sized, args.confidence_level, 0.6, use_cuda)
-                image, found = plot_boxes_cv2(image, boxes[0], class_names=class_names)
-                detection_stats = 'found objects: '
-                for object_found, count in found.items():
-                    detection_stats += f'{object_found} [{count}] '
-                self.get_logger().info(detection_stats)
+                height = image.shape[0]
+                width = image.shape[1]
+                timestamp = sample.timestamp
+                inputs = [utils.prepare_input(None, image, image_size=(args.image_size, args.image_size))]
+                tensor = utils.prepare_tensor(inputs, cuda=use_cuda)
+                with torch.no_grad():
+                    detections_batch = ssd_model(tensor)
+                results_per_input = utils.decode_results(detections_batch)
+                best_results_per_input = [utils.pick_best(results, args.confidence_level) for results in results_per_input]
+                bboxes, classes, confidences = best_results_per_input[0]
+                for box, cls, conf in zip(bboxes, classes, confidences):
+                    object_label = classes_to_labels[cls]
+                    detection_stats = f'{timestamp/1e9}: found objects: {object_label} ({conf})'
+                    self.get_logger().info(detection_stats)
                 # time.sleep(1)
                 rclpy.spin_once(self, timeout_sec=0)
 
 
 def get_args():
     parser = argparse.ArgumentParser('Test your image or video by trained model.')
-    parser.add_argument('-cfgfile', type=str, default='yolov4.cfg',
-                        help='path of cfg file', dest='cfgfile')
-    parser.add_argument('-weightfile', type=str,
-                        default='yolov4.weights',
-                        help='path of trained model.', dest='weightfile')
+    parser.add_argument('-model', type=str, default='coco_ssd_resnet50_300_fp32.pth',
+                        help='path of modelfile')
     parser.add_argument(
         '-object', dest='object',
         action='append',
@@ -80,6 +85,6 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    detector = ObjectDetector(args)
     rclpy.init()
+    detector = ObjectDetector(args)
     detector.run()
