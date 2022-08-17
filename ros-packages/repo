@@ -1,0 +1,4 @@
+repositories:
+  demo_interfaces:
+    type: git
+    url: https://github.com/kjwelbeck3/demo_interfaces.git
