@@ -15,6 +15,7 @@ import logging
 # from waggle.plugin import Plugin
 from waggle.data.vision import Camera
 
+from std_msgs.msg import String
 from demo_interfaces.msg import Heartbeat
 
 class ObjectDetector(Node):
@@ -22,7 +23,7 @@ class ObjectDetector(Node):
         super().__init__('demo_object_detector')
         self.name = self.get_namespace()[1:]
         self.pub_heartbeat = self.create_publisher(Heartbeat, 'state', 10)
-        self.pub_objectdetection = self.create_publisher(Heartbeat, 'object', 10)
+        self.pub_objectdetection = self.create_publisher(String, '/object', 10)
         self.stream = args.stream
 
     def run(self):
