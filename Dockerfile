@@ -5,7 +5,7 @@ RUN apt-get update \
 
 COPY requirements.txt /
 RUN pip3 install --upgrade pip \
-  && pip3 install --no-cache-dir -r requirements.txt
+  && pip3 install --no-cache-dir -r /requirements.txt
 
 RUN mkdir -p $ROS_WS/src
 WORKDIR $ROS_WS/src
@@ -15,9 +15,9 @@ WORKDIR $ROS_WS
 SHELL ["/bin/bash", "-c"]
 RUN source $ROS_ROOT/setup.bash && colcon build --symlink-install && source $ROS_WS/install/setup.bash
 
-RUN wget -O /app/yolov4.weights https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v3_optimal/yolov4.weights
+RUN wget https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v3_optimal/yolov4.weights -O /app/yolov4.weights
 
 COPY ./ /app/
 WORKDIR /app
-# ENTRYPOINT ["/ros_entrypoint.sh"]
-ENTRYPOINT ["python3", "/app/app.py"]
+ENTRYPOINT ["/app/ros_entrypoint.sh"]
+CMD ["python3", "/app/app.py"]
