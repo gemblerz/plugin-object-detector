@@ -15,9 +15,8 @@ WORKDIR $ROS_WS
 SHELL ["/bin/bash", "-c"]
 RUN source $ROS_ROOT/setup.bash && colcon build --symlink-install && source $ROS_WS/install/setup.bash
 
-RUN wget https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v3_optimal/yolov4.weights -O /app/yolov4.weights
-
-COPY ./ /app/
 WORKDIR /app
+RUN wget https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v3_optimal/yolov4.weights
+COPY ./ /app/
 ENTRYPOINT ["/app/ros_entrypoint.sh"]
 CMD ["python3", "/app/app.py"]

@@ -25,6 +25,7 @@ class ObjectDetector(Node):
         self.pub_heartbeat = self.create_publisher(Heartbeat, 'state', 10)
         self.pub_objectdetection = self.create_publisher(String, '/object', 10)
         self.stream = args.stream
+        self.conf_level = args.confidence_level
 
     def run(self):
         self.get_logger().info("Object counter running!")
@@ -45,17 +46,20 @@ class ObjectDetector(Node):
                 height = image.shape[0]
                 width = image.shape[1]
                 timestamp = sample.timestamp
-                inputs = [utils.prepare_input(None, image, image_size=(args.image_size, args.image_size))]
+                inputs = [utils.prepare_input(None, image, image_size=(300, 300))]
                 tensor = utils.prepare_tensor(inputs, cuda=use_cuda)
                 with torch.no_grad():
                     detections_batch = ssd_model(tensor)
                 results_per_input = utils.decode_results(detections_batch)
-                best_results_per_input = [utils.pick_best(results, args.confidence_level) for results in results_per_input]
+                best_results_per_input = [utils.pick_best(results, self.conf_level) for results in results_per_input]
                 bboxes, classes, confidences = best_results_per_input[0]
                 for box, cls, conf in zip(bboxes, classes, confidences):
                     object_label = classes_to_labels[cls]
                     detection_stats = f'{timestamp/1e9}: found objects: {object_label} ({conf})'
                     self.get_logger().info(detection_stats)
+                    msg = String()
+                    msg.data = object_label
+                    self.pub_objectdetection.publish(msg)
                 # time.sleep(1)
                 rclpy.spin_once(self, timeout_sec=0)
 
